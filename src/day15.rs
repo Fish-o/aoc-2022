@@ -117,9 +117,9 @@ pub fn run(input: String) {
     .map(|line| {
       let mut caps = regex.captures_iter(line);
       let sensor = caps.next().unwrap();
-      println!("Sensor: {:?}", sensor);
+      // println!("Sensor: {:?}", sensor);
       let beacon = caps.next().unwrap();
-      println!("Beacon: {:?}", beacon);
+      // println!("Beacon: {:?}", beacon);
       let sensor = Pos::from(sensor[1].parse().unwrap(), sensor[2].parse().unwrap());
       let beacon = Pos::from(beacon[1].parse().unwrap(), beacon[2].parse().unwrap());
       Sensor::new(sensor, beacon)
@@ -134,7 +134,7 @@ pub fn run(input: String) {
     .collect::<Vec<_>>();
 
   taken_spaces.sort_by(|(min_1, _), (min_2, _)| min_1.cmp(min_2));
-  println!("{:?}", taken_spaces);
+  // println!("{:?}", taken_spaces);
 
   let mut to_delete = Vec::new();
   let taken_spaces2 = taken_spaces.clone();
@@ -148,14 +148,14 @@ pub fn run(input: String) {
       }
     }
   }
-  println!("{:?}", to_delete);
+  // println!("{:?}", to_delete);
   let taken_spaces = taken_spaces
     .into_iter()
     .enumerate()
     .filter(|(i, _)| !to_delete.contains(i))
     .map(|(_, x)| x)
     .collect::<Vec<_>>();
-  println!("{:?}", taken_spaces);
+  // println!("{:?}", taken_spaces);
   let beacons: Vec<_> = sensors
     .iter()
     .map(|sensor| sensor.beacon)
@@ -169,19 +169,19 @@ pub fn run(input: String) {
 
   for x in beacons {
     if !taken_spaces.iter().any(|(min, max)| x >= *min && x <= *max) {
-      println!("{} is not taken", x);
+      // println!("{} is not taken", x);
     } else {
-      println!("{} is taken", x);
+      // println!("{} is taken", x);
       tot_spaces -= 1;
     }
   }
   for (min, max) in &taken_spaces {
-    println!("{} - {}", min, max);
+    // println!("{} - {}", min, max);
     tot_spaces += (max - min) + 1;
   }
 
-  println!("{:?}", taken_spaces);
+  // println!("{:?}", taken_spaces);
 
-  println!("Total spaces: {}", tot_spaces);
+  println!("Day 15: {} ???", tot_spaces);
   // taken_spaces.sort_by(|(min_1, _), (min_2, _)| min_1.cmp(min_2));
 }
