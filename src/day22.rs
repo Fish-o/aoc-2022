@@ -1,3 +1,5 @@
+use colored::Colorize;
+
 const SIDE_LENGTH: usize = 50;
 
 #[derive(Debug, Clone)]
@@ -42,6 +44,7 @@ impl Map {
     .unwrap()
   }
 }
+#[derive(Clone, Debug)]
 struct Pos {
   row: usize,
   column: usize,
@@ -227,7 +230,7 @@ impl Pos {
         } else if column == SIDE_LENGTH * 2 - 1 && row / SIDE_LENGTH == 1 {
           (
             SIDE_LENGTH - 1,
-            SIDE_LENGTH * 2 + (SIDE_LENGTH - (row - SIDE_LENGTH) - 1),
+            SIDE_LENGTH * 2 + (row - SIDE_LENGTH),
             Direction::Up,
           )
         } else if column == SIDE_LENGTH * 2 - 1 && row / SIDE_LENGTH == 2 {
@@ -262,6 +265,7 @@ impl Pos {
     new_direction
   }
 }
+
 impl Map {
   pub fn from(input: &str) -> Map {
     let max_width = input
@@ -293,6 +297,36 @@ impl Map {
       .collect();
     Map { map }
   }
+  pub fn from_empty(input: &str) -> Map {
+    let max_width = input
+      .split("\n")
+      .map(|line| line.len())
+      .max()
+      .expect("No max width");
+
+    let map = input
+      .split("\n")
+      .map(|line| {
+        line
+          .chars()
+          .map(|c| match c {
+            ' ' => Tile::Empty,
+            '#' => Tile::Walkable,
+            '.' => Tile::Walkable,
+            _ => panic!("Unknown tile"),
+          })
+          .collect::<Vec<_>>()
+      })
+      .into_iter()
+      .map(|mut line| {
+        while line.len() < max_width {
+          line.push(Tile::Empty);
+        }
+        line
+      })
+      .collect();
+    Map { map }
+  }
   pub fn get_start_pos(&self) -> Pos {
     let row = 0;
     let column = self.map[row]
@@ -302,7 +336,6 @@ impl Map {
         _ => false,
       })
       .expect("No start position found");
-    println!("start: r{} c{}", row, column);
     Pos::new(row, column)
   }
 }
@@ -348,7 +381,7 @@ impl InstructionSet {
     InstructionSet { instructions }
   }
 }
-
+#[derive(Clone)]
 struct Player {
   pos: Pos,
   direction: Direction,
@@ -387,7 +420,8 @@ impl Player {
     }
   }
 
-  pub fn walk_wrapping(&mut self, map: &Map, instruction_set: &InstructionSet) {
+  pub fn walk_wrapping(&mut self, map: &Map, instruction_set: &InstructionSet) -> Vec<Player> {
+    let mut players = vec![];
     for instruction in instruction_set.instructions.iter() {
       match instruction {
         Instruction::RotateL => {
@@ -408,6 +442,7 @@ impl Player {
         }
         Instruction::Move(distance) => {
           for _ in 0..*distance {
+            players.push(self.clone());
             self.direction = self.pos.walk_wrapping_cube(&self.direction, map);
             match map.map[self.pos.row][self.pos.column] {
               Tile::Empty => panic!("Empty tile"),
@@ -418,6 +453,7 @@ impl Player {
         }
       }
     }
+    players
   }
   pub fn new(map: &Map) -> Player {
     Player {
@@ -446,17 +482,60 @@ impl std::fmt::Debug for Direction {
 }
 
 pub fn run(input: String) {
+  print!("Day 22: ");
+  solve1(&input);
+  print!(" ");
+  solve2(&input);
+  println!("");
+}
+fn debug(input: &String) {
   let mut input = input.split("\n\n");
-  let input_map_part = input.next().unwrap();
+  let input_map_part: &str = input.next().unwrap();
+  // let input_instruction_part = input.next().unwrap();
+  let map = Map::from_empty(input_map_part);
+  let instruction_set = InstructionSet::from("200");
+  loop {
+    let start_pos = Pos::new(
+      rand::random::<usize>() % map.map.len(),
+      rand::random::<usize>() % map.map[0].len(),
+    );
+    if match map.map[start_pos.row][start_pos.column] {
+      Tile::Empty => true,
+      Tile::Wall => true,
+      Tile::Walkable => false,
+    } {
+      continue;
+    }
+    let direction = match rand::random::<usize>() % 4 {
+      0 => Direction::Up,
+      1 => Direction::Down,
+      2 => Direction::Left,
+      3 => Direction::Right,
+      _ => panic!("Unknown direction"),
+    };
+    let mut player = Player {
+      pos: start_pos.clone(),
+      direction: direction.clone(),
+    };
+    let steps = player.walk_wrapping(&map, &instruction_set);
+    if player.pos.row == start_pos.row && player.pos.column == start_pos.column {
+      continue;
+    }
+    // Debug all info
+    println!("start: {:?} {:?}", direction, start_pos);
+    println!("end: {:?} {:?}", player.direction, player.pos);
+    display(&map, &player, &steps);
+    panic!();
+  }
+}
+fn solve1(input: &String) {
+  let mut input = input.split("\n\n");
+  let input_map_part: &str = input.next().unwrap();
   let input_instruction_part = input.next().unwrap();
-
   let map = Map::from(input_map_part);
   let instruction_set = InstructionSet::from(input_instruction_part);
   let mut player = Player::new(&map);
   player.walk(&map, &instruction_set);
-  println!("col: {:?}", player.pos.column + 1);
-  println!("row: {:?}", player.pos.row + 1);
-  println!("dir: {:?}", player.direction);
   let facing = match player.direction {
     Direction::Right => 0,
     Direction::Down => 1,
@@ -466,12 +545,17 @@ pub fn run(input: String) {
   let row = player.pos.row + 1;
   let col = player.pos.column + 1;
   let sum = (1000 * row) + (4 * col) + facing;
-  println!("sum: {:?}", sum);
+  print!("{:?}", sum);
+}
+
+fn solve2(input: &String) {
+  let mut input = input.split("\n\n");
+  let input_map_part: &str = input.next().unwrap();
+  let input_instruction_part = input.next().unwrap();
+  let map = Map::from(input_map_part);
+  let instruction_set = InstructionSet::from(input_instruction_part);
   let mut wrapping_player = Player::new(&map);
   wrapping_player.walk_wrapping(&map, &instruction_set);
-  println!("col: {:?}", wrapping_player.pos.column + 1);
-  println!("row: {:?}", wrapping_player.pos.row + 1);
-  println!("dir: {:?}", wrapping_player.direction);
   let wrapping_facing = match wrapping_player.direction {
     Direction::Right => 0,
     Direction::Down => 1,
@@ -481,5 +565,31 @@ pub fn run(input: String) {
   let wrapping_row = wrapping_player.pos.row + 1;
   let wrapping_col = wrapping_player.pos.column + 1;
   let wrapping_sum = (1000 * wrapping_row) + (4 * wrapping_col) + wrapping_facing;
-  println!("sum: {:?}", wrapping_sum);
+  print!("{:?}", wrapping_sum);
+}
+
+fn display(map: &Map, player: &Player, prev: &Vec<Player>) {
+  for (row_index, row) in map.map.iter().enumerate() {
+    for (col_index, col) in row.iter().enumerate() {
+      if row_index == player.pos.row && col_index == player.pos.column {
+        print!("{}", (format!("{:?}", player.direction)).bold().red())
+      } else if let Some(index) = prev
+        .iter()
+        .position(|p| p.pos.row == row_index && p.pos.column == col_index)
+      {
+        let gradient = index as f32 / prev.len() as f32;
+        let dir = format!("{:?}", prev[index].direction);
+        // Turn gradient into a value between 100-255
+        let color = (gradient * 255.0) as u8;
+        print!("{}", dir.bold().truecolor(color, color, 0))
+      } else {
+        match col {
+          Tile::Empty => print!(" "),
+          Tile::Wall => print!("#"),
+          Tile::Walkable => print!("."),
+        }
+      }
+    }
+    println!();
+  }
 }
