@@ -236,7 +236,7 @@ pub fn run(input: String) {
   let mut walkable_map = WalkableMap::from(map, (0, 0));
   let map_size = walkable_map.next_valley_map.map_size;
   let goal = (map_size.0 - 1, map_size.1 - 1);
-  print!("Day 25: ");
+  print!("Day 24: ");
   loop {
     walkable_map.add_floor();
     if walkable_map.has_arrived_at(goal) {

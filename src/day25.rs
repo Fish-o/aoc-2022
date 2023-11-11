@@ -57,8 +57,7 @@ pub fn run(input: String) {
   let mut sum = 0;
   for snafu in snafus {
     let numb = parse_snafu(snafu);
-    println!("{}", numb);
     sum += numb;
   }
-  println!("Sum: {} {}", sum, create_snafu(sum));
+  println!("Day 25: {}", create_snafu(sum));
 }

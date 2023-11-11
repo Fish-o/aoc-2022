@@ -1,205 +1,229 @@
-use std::{collections::HashSet, os::unix::raw::gid_t};
+const WIDTH: usize = 73;
+const HEIGHT: usize = 73;
+const PADDING: usize = 60;
 
-use itertools::Itertools;
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 enum Tile {
-  Elf,
   Empty,
+  Elf,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+
+#[derive(Debug, Copy, Clone, PartialEq)]
 enum Direction {
   North,
   South,
   East,
   West,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct Elf {
-  pos: (usize, usize),
+struct Map {
+  map: [[Tile; WIDTH + (PADDING * 2)]; HEIGHT + (PADDING * 2)],
   directions: [Direction; 4],
 }
-impl Elf {
-  pub fn new(pos: (usize, usize), dir: [Direction; 4]) -> Self {
-    Elf {
-      pos,
-      directions: dir,
-    }
-  }
-  pub fn update_pos(&mut self, pos: &(usize, usize)) {
-    self.pos = *pos;
-  }
-}
-const PADDING: usize = 10;
-
-const MAP_WIDTH: usize = 12;
-const MAP_HEIGHT: usize = 12;
-const EMPTY_MAP: [[Tile; MAP_WIDTH + (PADDING * 2)]; MAP_HEIGHT + (PADDING * 2)] =
-  [[Tile::Empty; MAP_WIDTH + (PADDING * 2)]; MAP_HEIGHT + (PADDING * 2)];
-struct ElfGrounds {
-  pub map: [[Tile; MAP_WIDTH + (PADDING * 2)]; MAP_HEIGHT + (PADDING * 2)],
-  elfs: Vec<Elf>,
-}
-impl ElfGrounds {
-  pub fn from(map: &String) -> Self {
-    let mut grounds = EMPTY_MAP.clone();
-    let mut elfs = Vec::new();
-    for (row, line) in map.lines().enumerate() {
-      for (col, c) in line.chars().enumerate() {
-        println!("{} {} {}", c, row, col);
-        grounds[row + PADDING][col + PADDING] = match c {
-          '#' => Tile::Elf,
+impl Map {
+  pub fn from(input: &String) -> Self {
+    let mut map = [[Tile::Empty; WIDTH + (PADDING * 2)]; HEIGHT + (PADDING * 2)];
+    for (row, line) in input.lines().enumerate() {
+      for (col, char) in line.chars().enumerate() {
+        map[row + PADDING][col + PADDING] = match char {
           '.' => Tile::Empty,
-          _ => panic!("Invalid char in map: {}", c),
-        };
-        if c == '#' {
-          elfs.push(Elf::new(
-            (row + PADDING, col + PADDING),
-            [
-              Direction::North,
-              Direction::South,
-              Direction::East,
-              Direction::West,
-            ],
-          ));
+          '#' => Tile::Elf,
+          _ => panic!("Unknown tile"),
         }
       }
     }
-    ElfGrounds {
-      map: grounds,
-      elfs: elfs,
+    Map {
+      map,
+      directions: [
+        Direction::North,
+        Direction::South,
+        Direction::West,
+        Direction::East,
+      ],
     }
   }
-  pub fn simulate_elfs(&mut self) {
-    let mut proposed_positions = self
-      .elfs
-      .iter()
-      .map(|elf| (elf.pos, get_new_elf_pos(&elf, &self))) // Remove collisions
-      .collect::<Vec<_>>();
-    proposed_positions.sort_by_key(|f| f.1.pos);
-
-    let mut new_elfs: Vec<Elf> = proposed_positions
-      .clone()
-      .iter()
-      .tuple_windows::<(_, _, _)>()
-      .map(
-        |((_, prev_new_pos), (pos, mut new_pos), (_, next_new_pos))| {
-          if prev_new_pos.pos == new_pos.pos || next_new_pos.pos == new_pos.pos {
-            // collision
-            new_pos.update_pos(pos)
+  pub fn tick(&mut self) -> bool {
+    let mut collision_map = [[0; WIDTH + (PADDING * 2)]; HEIGHT + (PADDING * 2)];
+    let mut elf_locations = vec![];
+    let mut elf_moved = false;
+    for (row, line) in self.map.iter().enumerate() {
+      for (col, old_tile) in line.iter().enumerate() {
+        match old_tile {
+          Tile::Empty => (),
+          Tile::Elf => {
+            let n = self.map[row - 1][col] == Tile::Empty;
+            let ne = self.map[row - 1][col + 1] == Tile::Empty;
+            let e = self.map[row][col + 1] == Tile::Empty;
+            let se = self.map[row + 1][col + 1] == Tile::Empty;
+            let s = self.map[row + 1][col] == Tile::Empty;
+            let sw = self.map[row + 1][col - 1] == Tile::Empty;
+            let w = self.map[row][col - 1] == Tile::Empty;
+            let nw = self.map[row - 1][col - 1] == Tile::Empty;
+            elf_locations.push((row, col));
+            // Check if all are empty
+            if n && ne && e && se && s && sw && w && nw {
+              collision_map[row][col] += 1;
+              continue;
+            }
+            elf_moved = true;
+            for dir in self.directions {
+              match dir {
+                Direction::North => {
+                  if n && ne && nw {
+                    collision_map[row - 1][col] += 1;
+                    break;
+                  }
+                }
+                Direction::South => {
+                  if s && se && sw {
+                    collision_map[row + 1][col] += 1;
+                    break;
+                  }
+                }
+                Direction::East => {
+                  if e && ne && se {
+                    collision_map[row][col + 1] += 1;
+                    break;
+                  }
+                }
+                Direction::West => {
+                  if w && nw && sw {
+                    collision_map[row][col - 1] += 1;
+                    break;
+                  }
+                }
+              }
+            }
           }
-          new_pos
-        },
-      )
-      .collect::<Vec<_>>();
-
-    // Add first and last elf back
-    let (first_elf_old, first_elf) = proposed_positions.first().unwrap();
-    let (_, second_elf) = proposed_positions.get(1).unwrap();
-    if first_elf.pos == second_elf.pos {
-      new_elfs.push(Elf::new(*first_elf_old, first_elf.directions));
-    } else {
-      new_elfs.push(*first_elf);
+        }
+      }
     }
-    let (last_elf_old, last_elf) = proposed_positions.last().unwrap();
-    let (_, second_last_elf) = proposed_positions
-      .get(proposed_positions.len() - 2)
-      .unwrap();
-    if last_elf.pos == second_last_elf.pos {
-      new_elfs.push(Elf::new(*last_elf_old, last_elf.directions));
-    } else {
-      new_elfs.push(*last_elf);
+    let mut new_map = [[Tile::Empty; WIDTH + (PADDING * 2)]; HEIGHT + (PADDING * 2)];
+    for elf in elf_locations {
+      let (row, col) = elf;
+      let n = self.map[row - 1][col] == Tile::Empty;
+      let ne = self.map[row - 1][col + 1] == Tile::Empty;
+      let e = self.map[row][col + 1] == Tile::Empty;
+      let se = self.map[row + 1][col + 1] == Tile::Empty;
+      let s = self.map[row + 1][col] == Tile::Empty;
+      let sw = self.map[row + 1][col - 1] == Tile::Empty;
+      let w = self.map[row][col - 1] == Tile::Empty;
+      let nw = self.map[row - 1][col - 1] == Tile::Empty;
+      // Check if all are empty
+      if n && ne && e && se && s && sw && w && nw {
+        new_map[row][col] = Tile::Elf;
+        continue;
+      }
+      let mut new_pos = (row, col);
+      for dir in self.directions {
+        match dir {
+          Direction::North => {
+            if n && ne && nw {
+              new_pos = (row - 1, col);
+              break;
+            }
+          }
+          Direction::South => {
+            if s && se && sw {
+              new_pos = (row + 1, col);
+              break;
+            }
+          }
+          Direction::East => {
+            if e && ne && se {
+              new_pos = (row, col + 1);
+              break;
+            }
+          }
+          Direction::West => {
+            if w && nw && sw {
+              new_pos = (row, col - 1);
+              break;
+            }
+          }
+        }
+      }
+      if collision_map[new_pos.0][new_pos.1] == 1 {
+        new_map[new_pos.0][new_pos.1] = Tile::Elf;
+      } else {
+        new_map[row][col] = Tile::Elf;
+      }
     }
-    self.elfs = new_elfs;
-    // Remove collisions
-
-    self.map = EMPTY_MAP.clone();
-    for (row, col) in self.elfs.iter().map(|e| e.pos) {
-      self.map[row][col] = Tile::Elf;
-    }
+    self.map = new_map;
+    self.directions.rotate_left(1);
+    elf_moved
   }
-  pub fn display(&self) {
+  pub fn get_bounding_box(&self) -> (usize, usize) {
+    let mut min_row = usize::MAX;
+    let mut max_row = usize::MIN;
+    let mut min_col = usize::MAX;
+    let mut max_col = usize::MIN;
+    for (row, line) in self.map.iter().enumerate() {
+      for (col, tile) in line.iter().enumerate() {
+        match tile {
+          Tile::Empty => (),
+          Tile::Elf => {
+            if row < min_row {
+              min_row = row;
+            }
+            if row > max_row {
+              max_row = row;
+            }
+            if col < min_col {
+              min_col = col;
+            }
+            if col > max_col {
+              max_col = col;
+            }
+          }
+        }
+      }
+    }
+    (max_row - min_row + 1, max_col - min_col + 1)
+  }
+  pub fn elf_count(&self) -> u32 {
+    let mut count = 0;
+    for line in &self.map {
+      for tile in line {
+        match tile {
+          Tile::Empty => (),
+          Tile::Elf => count += 1,
+        }
+      }
+    }
+    count
+  }
+}
+
+impl std::fmt::Display for Map {
+  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     for row in &self.map {
       for tile in row {
         match tile {
-          Tile::Elf => print!("#"),
-          Tile::Empty => print!("."),
+          Tile::Empty => write!(f, ".")?,
+          Tile::Elf => write!(f, "#")?,
         }
       }
-      println!();
+      write!(f, "\n")?;
     }
+    Ok(())
   }
 }
 pub fn run(input: String) {
-  let mut elf_grounds = ElfGrounds::from(&input);
-  elf_grounds.display();
-
-  for i in 1..=10 {
-    elf_grounds.simulate_elfs();
-    println!("\nElf ground: {}", i);
-    elf_grounds.display();
-  }
-}
-
-fn get_new_elf_pos(elf: &Elf, map: &ElfGrounds) -> Elf {
-  let row = elf.pos.0;
-  let col = elf.pos.1;
-
-  let n = map.map[row - 1][col];
-  let ne = map.map[row - 1][col + 1];
-  let e = map.map[row][col + 1];
-  let se = map.map[row + 1][col + 1];
-  let s = map.map[row + 1][col];
-  let sw = map.map[row + 1][col - 1];
-  let w = map.map[row][col - 1];
-  let nw = map.map[row - 1][col - 1];
-
-  let dirs: [Direction; 4] = [
-    elf.directions[1],
-    elf.directions[2],
-    elf.directions[3],
-    elf.directions[0],
-  ];
-  if [n, ne, e, se, s, sw, w, nw]
-    .iter()
-    .all(|tile| *tile == Tile::Empty)
-  {
-    return Elf::new((elf.pos.0, elf.pos.1), dirs);
-  }
-
-  for dir in &elf.directions {
-    match dir {
-      Direction::North => {
-        if n == Tile::Empty && ne == Tile::Empty && nw == Tile::Empty {
-          return Elf::new((row - 1, col), dirs);
-        }
-      }
-      Direction::South => {
-        if s == Tile::Empty && se == Tile::Empty && sw == Tile::Empty {
-          return Elf::new((row + 1, col), dirs);
-        }
-      }
-      Direction::West => {
-        if w == Tile::Empty && nw == Tile::Empty && sw == Tile::Empty {
-          return Elf::new((row, col - 1), dirs);
-        }
-      }
-      Direction::East => {
-        if e == Tile::Empty && ne == Tile::Empty && se == Tile::Empty {
-          return Elf::new((row, col + 1), dirs);
-        }
-      }
+  let mut map = Map::from(&input);
+  let mut i = 0;
+  print!("Day 23: ");
+  loop {
+    i += 1;
+    let moved = map.tick();
+    if i == 10 {
+      let size = map.get_bounding_box();
+      let elves = map.elf_count();
+      print!("{}", (size.0 * size.1) - elves as usize);
+    }
+    if !moved {
+      break;
     }
   }
-  Elf::new((elf.pos.0, elf.pos.1), dirs)
+
+  println!(" {}", i);
 }
-
-// 2670 elves
-
-// 73x73
-
-/*
-  If there is no Elf in the N, NE, or NW adjacent positions, the Elf proposes moving north one step.
-  If there is no Elf in the S, SE, or SW adjacent positions, the Elf proposes moving south one step.
-  If there is no Elf in the W, NW, or SW adjacent positions, the Elf proposes moving west one step.
-  If there is no Elf in the E, NE, or SE adjacent positions, the Elf proposes moving east one step.
-*/
