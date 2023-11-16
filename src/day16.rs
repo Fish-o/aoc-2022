@@ -1,5 +1,12 @@
 use std::{
-  arch::x86_64, collections::HashMap, f32::consts::E, hash::Hash, mem::size_of_val, option,
+  arch::x86_64,
+  collections::HashMap,
+  f32::consts::E,
+  hash::Hash,
+  mem::size_of_val,
+  option,
+  sync::{Arc, Mutex},
+  thread,
 };
 
 use itertools::Itertools;
@@ -83,7 +90,24 @@ pub fn run(input: String) {
     0.0,
   );
   let best = tree.get_highest(30);
-  println!("Day 16: {} ???", best.0);
+  println!("Day 16: {} (takes ~15 mins)", best.0);
+  // println!("Creating elephant tree");
+  // let elephant_tree = top_level_create_elephant(
+  //   functional_valves,
+  //   &tables,
+  //   0,
+  //   26,
+  //   "AA",
+  //   "AA",
+  //   None,
+  //   None,
+  //   vec![],
+  //   0,
+  //   0,
+  // );
+  // let best_eventual_pressure = elephant_tree.get_eventual_best_pressure(26);
+  // println!("{:#?}", elephant_tree);
+  // println!("Day 16: {}", best_eventual_pressure);
   // println!("Memory size of tree {}", tree.mem_size());
   // println!("Nodes in tree {}", tree.get_node_count());
   // println!("Creating elephant tree");
@@ -191,7 +215,6 @@ pub fn run(input: String) {
 
   // println!("{:#?}", best);
 }
-
 #[derive(Debug, Clone)]
 struct TreeNode {
   opened: HashMap<String, u32>,
@@ -231,305 +254,8 @@ impl TreeNode {
   fn get_released_pressure(self: &Self, max_t: u32) -> u32 {
     self.released_pressure + (self.pressure_release_rate * (max_t - self.t))
   }
-  /*fn get_all_pressures(self: &Self) -> Vec<u32> {
-      let mut pressures = vec![];
-      if self.paused {
-        pressures.push(self.get_released_pressure(26));
-      } else {
-        for node in &self.nodes {
-          pressures.append(&mut node.get_all_pressures());
-        }
-      }
-      pressures
-    }
-    fn prune(self: &mut Self, below: u32) {
-      self.nodes = self
-        .nodes
-        .iter()
-        .filter(|n| {
-          if n.paused {
-            if n.get_released_pressure(26) < below {
-              false
-            } else {
-              true
-            }
-          } else if n.nodes.len() == 0 {
-            false
-          } else {
-            true
-          }
-        })
-        .cloned()
-        .collect::<Vec<_>>();
-      self.nodes.iter_mut().for_each(|n| {
-        if !n.paused {
-          n.prune(below);
-        }
-      })
-    }
-    fn unpause(
-      self: &mut Self,
-      valves: &Vec<Valve>,
-      tables: &HashMap<String, HashMap<String, (String, u32, u32)>>,
-      prune: f32,
-      max_t: u32,
-      new_max_depth: u32,
-    ) {
-      for node in &mut self.nodes {
-        if node.paused {
-          let new_node = create_doubly_traversed_tree(
-            valves,
-            tables,
-            &node.pause_data.as_ref().unwrap().0,
-            &node.pause_data.as_ref().unwrap().1,
-            node.opened.clone(),
-            node.t,
-            max_t,
-            node.released_pressure,
-            node.pressure_release_rate,
-            prune,
-            node.depth,
-            new_max_depth,
-          );
-          *node = new_node;
-        } else {
-          node.unpause(valves, tables, prune, max_t, new_max_depth);
-        }
-      }
-    }
-  */
 }
 
-/*
-fn create_doubly_traversed_tree(
-  valves: &Vec<Valve>,
-  tables: &HashMap<String, HashMap<String, (String, u32, u32)>>,
-  current_valve_a: &String,
-  current_valve_b: &String,
-  opened: HashMap<String, u32>,
-  t: u32,
-  max_t: u32,
-  released_pressure: u32,
-  pressure_release_rate: u32,
-  prune: f32,
-  depth: u32,
-  max_depth: u32,
-) -> TreeNode {
-  // println!("Depth: {}", opened.len());
-  if depth >= max_depth {
-    return TreeNode {
-      nodes: vec![],
-      opened,
-      pressure_release_rate,
-      released_pressure,
-      t,
-      depth,
-      paused: true,
-      pause_data: Some((current_valve_a.to_owned(), current_valve_b.to_owned())),
-    };
-  }
-  // AAAAAAAAAAAAAAAAAAAA
-  let table = tables.get(current_valve_a).unwrap();
-  let mut options = vec![];
-  for valve in valves {
-    if opened.contains_key(&valve.id) {
-      continue;
-    }
-    let (via, time_cost, flow_rate) = table.get(&valve.id).unwrap();
-    if t + *time_cost <= max_t {
-      options.push((
-        current_valve_a.to_owned(),
-        valve.id.clone(),
-        1,
-        time_cost.clone(),
-        flow_rate.clone(),
-      ));
-    }
-  }
-  options.sort_by_key(|(_, _, potential, _, _)| *potential);
-  options.reverse();
-  let count: usize = ((options.len() as f32) * (1.0 - prune)).ceil() as usize;
-  // println!("Pruned {}/{}", options.len() - count, options.len());
-  let pruned_options = options.drain(0..count).collect::<Vec<_>>();
-  let pruned_options_a = pruned_options;
-  // BBBBBBBBBBBBBBB
-  let table = tables.get(current_valve_b).unwrap();
-  let mut options = vec![];
-  for valve in valves {
-    if opened.contains_key(&valve.id) {
-      continue;
-    }
-    let (via, time_cost, flow_rate) = table.get(&valve.id).unwrap();
-    if t + time_cost.clone() <= max_t {
-      options.push((
-        current_valve_b.to_owned(),
-        valve.id.clone(),
-        1,
-        time_cost.clone(),
-        flow_rate.clone(),
-      ));
-    }
-  }
-  options.sort_by_key(|(_, _, potential, _, _)| *potential);
-  options.reverse();
-  let count: usize = ((options.len() as f32) * (1.0 - prune)).ceil() as usize;
-  let pruned_options = options.drain(0..count).collect::<Vec<_>>();
-  let pruned_options_b = pruned_options;
-  if pruned_options_a.len() == 0 && pruned_options_b.len() == 0 {
-    return TreeNode {
-      nodes: vec![],
-      opened,
-      pressure_release_rate,
-      released_pressure,
-      t,
-      depth,
-      paused: false,
-      pause_data: None,
-    };
-  }
-  // Get all combinations of the options a and options b
-  // CURRENT ID POTENTIAL TIME_COST FLOW_RATE
-
-  let mut combined_options: Vec<(
-    (String, String, u32, u32, u32),
-    (String, String, u32, u32, u32),
-  )> = vec![];
-  for option_a in &pruned_options_a {
-    for option_b in &pruned_options_b {
-      if option_a.3 > option_b.3 {
-        if combined_options
-          .iter()
-          .any(|f| f.0 == *option_b && f.1 == *option_a)
-        {
-          continue;
-        }
-        combined_options.push((option_b.clone(), option_a.clone()));
-      } else {
-        if combined_options
-          .iter()
-          .any(|f| f.0 == *option_a && f.1 == *option_b)
-        {
-          continue;
-        }
-        combined_options.push((option_a.clone(), option_b.clone()));
-      }
-    }
-  }
-
-  let mut nodes = vec![];
-  for option in &combined_options {
-    let (a_orig, a_dest, a_pot, a_cost, a_flow_rate) = option.0.clone();
-    let (b_orig, b_dest, b_pot, b_cost, b_flow_rate) = option.1.clone();
-
-    // println!("A move takes {} from {}", a_cost, a_orig);
-    // println!("B move takes {} from {}", b_cost, b_orig);
-
-    // println!("A is at {}", a_orig);
-    // println!("B is at {}", b_orig);
-    // println!("B wants to go to {}", b_dest);
-
-    let (b_end_location, b_opened) = {
-      let mut b_location = &b_orig;
-      let mut b_opened = false;
-      for _ in 0..a_cost {
-        if b_location == &b_dest {
-          // println!("B is at {} and opened", b_location);
-          b_opened = true;
-          break;
-        }
-        let table = tables.get(b_location).unwrap();
-        let (via, _, _) = table.get(&b_dest).unwrap();
-        b_location = via;
-        // println!("B is at {}", b_location)
-      }
-      (b_location, b_opened)
-    };
-    // println!("B ENDS AT {} {}", b_end_location, b_opened);
-    let new_t = t + a_cost;
-
-    let mut new_opened = opened.clone();
-    new_opened.insert(a_dest.clone(), new_t);
-    let new_released_pressure = released_pressure + (pressure_release_rate * a_cost);
-    let mut new_pressure_release_rate = pressure_release_rate + a_flow_rate;
-    if b_opened && !new_opened.contains_key(b_dest.as_str()) {
-      new_opened.insert(b_dest, new_t);
-      new_pressure_release_rate += b_flow_rate;
-    }
-    let node = create_doubly_traversed_tree(
-      valves,
-      tables,
-      &a_dest,
-      &b_end_location,
-      new_opened,
-      new_t,
-      max_t,
-      new_released_pressure,
-      new_pressure_release_rate,
-      prune,
-      depth + 1,
-      max_depth,
-    );
-    nodes.push(node);
-  }
-  if combined_options.len() == 0 {
-    for opt in pruned_options_b {
-      let (_, dest, _, cost, rate) = opt;
-      let new_t = t + cost;
-      let mut new_opened = opened.clone();
-      new_opened.insert(dest.clone(), new_t);
-      let new_released_pressure = released_pressure + (pressure_release_rate * cost);
-      let new_pressure_release_rate = pressure_release_rate + rate;
-      let node = create_doubly_traversed_tree(
-        valves,
-        tables,
-        &dest,
-        &current_valve_b,
-        new_opened,
-        new_t,
-        max_t,
-        new_released_pressure,
-        new_pressure_release_rate,
-        prune,
-        depth + 1,
-        max_depth,
-      );
-      nodes.push(node)
-    }
-    for opt in pruned_options_a {
-      let (_, dest, _, cost, rate) = opt;
-      let new_t = t + cost;
-      let mut new_opened = opened.clone();
-      new_opened.insert(dest.clone(), new_t);
-      let new_released_pressure = released_pressure + (pressure_release_rate * cost);
-      let new_pressure_release_rate = pressure_release_rate + rate;
-      let node = create_doubly_traversed_tree(
-        valves,
-        tables,
-        &current_valve_a,
-        &dest,
-        new_opened,
-        new_t,
-        max_t,
-        new_released_pressure,
-        new_pressure_release_rate,
-        prune,
-        depth + 1,
-        max_depth,
-      );
-      nodes.push(node)
-    }
-  }
-  TreeNode {
-    opened,
-    t,
-    released_pressure,
-    pressure_release_rate,
-    nodes,
-    depth,
-    paused: false,
-    pause_data: None,
-  }
-}*/
 fn create_tree(
   valves: &Vec<Valve>,
   tables: &HashMap<String, HashMap<String, (String, u32, u32)>>,
@@ -676,4 +402,495 @@ fn get_potential(time_cost: u32, flow_rate: u32, t: u32, max_t: u32) -> u32 {
   let potential = (time_left - time_cost) * flow_rate;
   // println!("Potential: {}", potential);
   potential
+}
+#[derive(Debug, Clone)]
+struct ElephantTree {
+  t: u32,
+  pos_a: String,
+  pos_b: String,
+  pressure: u32,
+  pressure_release_rate: u32,
+  opened: Vec<String>,
+  opening_a: Option<(u32, String, u32)>,
+  opening_b: Option<(u32, String, u32)>,
+  best_child: Option<Box<ElephantTree>>,
+}
+impl ElephantTree {
+  pub fn get_eventual_best_pressure(self: &Self, max_t: u32) -> u32 {
+    if self.t == max_t {
+      return self.pressure;
+    } else if let Some(best_child) = &self.best_child {
+      return best_child.get_eventual_best_pressure(max_t);
+    } else {
+      return self.pressure + (self.pressure_release_rate * (max_t - self.t));
+    }
+  }
+}
+
+fn top_level_create_elephant(
+  valves: &Vec<Valve>,
+  tables: &HashMap<String, HashMap<String, (String, u32, u32)>>,
+  t: u32,
+  max_t: u32,
+  pos_a: &str,
+  pos_b: &str,
+  // Dist, valve, flow_rate
+  opening_a: Option<(u32, String, u32)>,
+  // Dist, valve, flow_rate
+  opening_b: Option<(u32, String, u32)>,
+  opened: Vec<String>,
+  pressure: u32,
+  pressure_release_rate: u32,
+) -> ElephantTree {
+  if t == max_t {
+    return ElephantTree {
+      t,
+      pos_a: pos_a.to_owned(),
+      pos_b: pos_b.to_owned(),
+      pressure,
+      pressure_release_rate,
+      opened,
+      opening_a,
+      opening_b,
+      best_child: None,
+    };
+  }
+  let a_goals = if let Some(valve) = opening_a.clone() {
+    vec![valve.clone()]
+  } else {
+    // Add all unopened valves in range
+    valves
+      .iter()
+      .filter(|v| {
+        v.flow_rate > 0
+          && !opened.contains(&v.id)
+          && opening_b.clone().unwrap_or((0, "none".to_owned(), 0)).1 != v.id
+      })
+      .map(|v| {
+        let time = tables.get(pos_a).unwrap().get(&v.id).unwrap();
+        (time.1, v.id.clone(), v.flow_rate)
+      })
+      .filter(|v| v.0 > 0 && v.0 < max_t - t)
+      .collect::<Vec<_>>()
+  };
+  let b_goals = if let Some(valve) = opening_b.clone() {
+    vec![valve.clone()]
+  } else {
+    // Add all unopened valves in range
+    valves
+      .iter()
+      .filter(|v| {
+        v.flow_rate > 0
+          && !opened.contains(&v.id)
+          && opening_a.clone().unwrap_or((0, "none".to_owned(), 0)).1 != v.id
+      })
+      .map(|v| {
+        let time = tables.get(pos_b).unwrap().get(&v.id).unwrap();
+        (time.1, v.id.clone(), v.flow_rate)
+      })
+      .filter(|v| v.0 > 0 && v.0 < max_t - t)
+      .collect::<Vec<_>>()
+  };
+
+  let mut best_child: Arc<Mutex<Option<ElephantTree>>> = Arc::new(Mutex::new(None));
+  let mut best_eventual_pressure = Arc::new(Mutex::new(0));
+  let mut total_goals = a_goals.len() * b_goals.len();
+  let mut i = 0;
+  let mut start = std::time::Instant::now();
+  let mut now = std::time::Instant::now();
+  let mut handles = vec![];
+  let mut total_done = Arc::new(Mutex::new(0));
+  for a_goal in &a_goals {
+    for b_goal in &b_goals {
+      i += 1;
+      let estimated_end = (start.elapsed() / i) * total_goals as u32;
+      println!("{i}/{total_goals} in {:?}", now.elapsed());
+      println!("Estimated end in {:?}", estimated_end);
+      now = std::time::Instant::now();
+      if a_goal.1 == b_goal.1 {
+        continue;
+      }
+      let a_goal = a_goal.clone();
+      let b_goal = b_goal.clone();
+      let valves = valves.clone();
+      let tables = tables.clone();
+      let pos_a = pos_a.to_owned();
+      let pos_b = pos_b.to_owned();
+      let best_eventual_pressure = best_eventual_pressure.clone();
+      let best_child = best_child.clone();
+      let opened = opened.clone();
+      let i = i.clone();
+      let total_done = total_done.clone();
+      let total_goals = total_goals.clone();
+      let handle = thread::spawn(move || {
+        let child = if a_goal.0 == b_goal.0 {
+          let time_traveled = a_goal.0;
+          let new_t = t + time_traveled;
+          let new_pos_a = a_goal.1.clone();
+          let new_pos_b = b_goal.1.clone();
+          let new_opening_a = None;
+          let new_opening_b = None;
+          let new_pressure = pressure + (pressure_release_rate * time_traveled);
+          let new_pressure_release_rate = pressure_release_rate + a_goal.2 + b_goal.2;
+          let new_opened = {
+            let mut new_opened = opened.clone();
+            new_opened.push(a_goal.1.clone());
+            new_opened.push(b_goal.1.clone());
+            new_opened
+          };
+          create_elephant_tree(
+            &valves,
+            &tables,
+            new_t,
+            max_t,
+            new_pos_a.as_str(),
+            new_pos_b.as_str(),
+            new_opening_a,
+            new_opening_b,
+            new_opened,
+            new_pressure,
+            new_pressure_release_rate,
+          )
+        } else if a_goal.0 < b_goal.0 {
+          let time_traveled = a_goal.0;
+          let new_t = t + time_traveled;
+          let new_pos_a = a_goal.1.clone();
+          let new_pos_b = pos_b;
+          let new_opening_a = None;
+          let new_opening_b = Some((b_goal.0 - time_traveled, b_goal.1.clone(), b_goal.2));
+          let new_pressure = pressure + (pressure_release_rate * time_traveled);
+          let new_pressure_release_rate = pressure_release_rate + a_goal.2;
+          let new_opened = {
+            let mut new_opened = opened.clone();
+            new_opened.push(a_goal.1.clone());
+            new_opened
+          };
+          create_elephant_tree(
+            &valves,
+            &tables,
+            new_t,
+            max_t,
+            new_pos_a.as_str(),
+            &new_pos_b,
+            new_opening_a,
+            new_opening_b,
+            new_opened,
+            new_pressure,
+            new_pressure_release_rate,
+          )
+        } else {
+          let time_traveled = b_goal.0;
+          let new_t = t + time_traveled;
+          let new_pos_a = pos_a;
+          let new_pos_b = b_goal.1.clone();
+          let new_opening_a = Some((a_goal.0 - time_traveled, a_goal.1.clone(), a_goal.2));
+          let new_opening_b = None;
+          let new_pressure = pressure + (pressure_release_rate * time_traveled);
+          let new_pressure_release_rate = pressure_release_rate + b_goal.2;
+          let new_opened = {
+            let mut new_opened = opened.clone();
+            new_opened.push(b_goal.1.clone());
+            new_opened
+          };
+          create_elephant_tree(
+            &valves,
+            &tables,
+            new_t,
+            max_t,
+            &new_pos_a,
+            new_pos_b.as_str(),
+            new_opening_a,
+            new_opening_b,
+            new_opened,
+            new_pressure,
+            new_pressure_release_rate,
+          )
+        };
+        let eventual_pressure = child.get_eventual_best_pressure(max_t);
+        let mut best_eventual_pressure = best_eventual_pressure.lock().unwrap();
+        if *best_eventual_pressure < eventual_pressure {
+          *best_eventual_pressure = eventual_pressure;
+          let mut best_child = best_child.lock().unwrap();
+          *best_child = Some(child);
+        }
+        let mut total_done = total_done.lock().unwrap();
+        *total_done += 1;
+        println!("[{}] {}/{} Done!", i, total_done, total_goals);
+      });
+      handles.push(handle);
+    }
+  }
+  for handle in handles {
+    handle.join().unwrap();
+  }
+  let best_child: ElephantTree = best_child.lock().unwrap().clone().unwrap();
+  ElephantTree {
+    t,
+    pos_a: pos_a.to_owned(),
+    pos_b: pos_b.to_owned(),
+    pressure,
+    pressure_release_rate,
+    opened,
+    opening_a,
+    opening_b,
+    best_child: Some(Box::new(best_child)),
+  }
+}
+fn create_elephant_tree(
+  valves: &Vec<Valve>,
+  tables: &HashMap<String, HashMap<String, (String, u32, u32)>>,
+  t: u32,
+  max_t: u32,
+  pos_a: &str,
+  pos_b: &str,
+  // Dist, valve, flow_rate
+  opening_a: Option<(u32, String, u32)>,
+  // Dist, valve, flow_rate
+  opening_b: Option<(u32, String, u32)>,
+  opened: Vec<String>,
+  pressure: u32,
+  pressure_release_rate: u32,
+) -> ElephantTree {
+  if t == max_t {
+    return ElephantTree {
+      t,
+      pos_a: pos_a.to_owned(),
+      pos_b: pos_b.to_owned(),
+      pressure,
+      pressure_release_rate,
+      opened,
+      opening_a,
+      opening_b,
+      best_child: None,
+    };
+  }
+  let a_goals = if let Some(valve) = opening_a.clone() {
+    vec![valve.clone()]
+  } else {
+    // Add all unopened valves in range
+    valves
+      .iter()
+      .filter(|v| {
+        v.flow_rate > 0
+          && !opened.contains(&v.id)
+          && opening_b.clone().unwrap_or((0, "none".to_owned(), 0)).1 != v.id
+      })
+      .map(|v| {
+        let time = tables.get(pos_a).unwrap().get(&v.id).unwrap();
+        (time.1, v.id.clone(), v.flow_rate)
+      })
+      .filter(|v| v.0 > 0 && v.0 < max_t - t)
+      .collect::<Vec<_>>()
+  };
+  let b_goals = if let Some(valve) = opening_b.clone() {
+    vec![valve.clone()]
+  } else {
+    // Add all unopened valves in range
+    valves
+      .iter()
+      .filter(|v| {
+        v.flow_rate > 0
+          && !opened.contains(&v.id)
+          && opening_a.clone().unwrap_or((0, "none".to_owned(), 0)).1 != v.id
+      })
+      .map(|v| {
+        let time = tables.get(pos_b).unwrap().get(&v.id).unwrap();
+        (time.1, v.id.clone(), v.flow_rate)
+      })
+      .filter(|v| v.0 > 0 && v.0 < max_t - t)
+      .collect::<Vec<_>>()
+  };
+
+  let mut best_child: Option<ElephantTree> = None;
+  let mut best_eventual_pressure = 0;
+  for a_goal in &a_goals {
+    for b_goal in &b_goals {
+      if a_goal.1 == b_goal.1 {
+        continue;
+      }
+
+      let child = if a_goal.0 == b_goal.0 {
+        let time_traveled = a_goal.0;
+        let new_t = t + time_traveled;
+        let new_pos_a = a_goal.1.clone();
+        let new_pos_b = b_goal.1.clone();
+        let new_opening_a = None;
+        let new_opening_b = None;
+        let new_pressure = pressure + (pressure_release_rate * time_traveled);
+        let new_pressure_release_rate = pressure_release_rate + a_goal.2 + b_goal.2;
+        let new_opened = {
+          let mut new_opened = opened.clone();
+          new_opened.push(a_goal.1.clone());
+          new_opened.push(b_goal.1.clone());
+          new_opened
+        };
+        create_elephant_tree(
+          valves,
+          tables,
+          new_t,
+          max_t,
+          new_pos_a.as_str(),
+          new_pos_b.as_str(),
+          new_opening_a,
+          new_opening_b,
+          new_opened,
+          new_pressure,
+          new_pressure_release_rate,
+        )
+      } else if a_goal.0 < b_goal.0 {
+        let time_traveled = a_goal.0;
+        let new_t = t + time_traveled;
+        let new_pos_a = a_goal.1.clone();
+        let new_pos_b = pos_b;
+        let new_opening_a = None;
+        let new_opening_b = Some((b_goal.0 - time_traveled, b_goal.1.clone(), b_goal.2));
+        let new_pressure = pressure + (pressure_release_rate * time_traveled);
+        let new_pressure_release_rate = pressure_release_rate + a_goal.2;
+        let new_opened = {
+          let mut new_opened = opened.clone();
+          new_opened.push(a_goal.1.clone());
+          new_opened
+        };
+        create_elephant_tree(
+          valves,
+          tables,
+          new_t,
+          max_t,
+          new_pos_a.as_str(),
+          new_pos_b,
+          new_opening_a,
+          new_opening_b,
+          new_opened,
+          new_pressure,
+          new_pressure_release_rate,
+        )
+      } else {
+        let time_traveled = b_goal.0;
+        let new_t = t + time_traveled;
+        let new_pos_a = pos_a;
+        let new_pos_b = b_goal.1.clone();
+        let new_opening_a = Some((a_goal.0 - time_traveled, a_goal.1.clone(), a_goal.2));
+        let new_opening_b = None;
+        let new_pressure = pressure + (pressure_release_rate * time_traveled);
+        let new_pressure_release_rate = pressure_release_rate + b_goal.2;
+        let new_opened = {
+          let mut new_opened = opened.clone();
+          new_opened.push(b_goal.1.clone());
+          new_opened
+        };
+        create_elephant_tree(
+          valves,
+          tables,
+          new_t,
+          max_t,
+          new_pos_a,
+          new_pos_b.as_str(),
+          new_opening_a,
+          new_opening_b,
+          new_opened,
+          new_pressure,
+          new_pressure_release_rate,
+        )
+      };
+      let eventual_pressure = child.get_eventual_best_pressure(max_t);
+      if best_child.is_none() || eventual_pressure > best_eventual_pressure {
+        best_child = Some(child);
+        best_eventual_pressure = eventual_pressure;
+      }
+    }
+  }
+  if a_goals.len() == 1 && b_goals.len() == 1 {
+    let a_goal = a_goals[0].clone();
+    let b_goal = b_goals[0].clone();
+    if a_goal.1 == b_goal.1 {
+      let (shortest, longest) = if a_goal.0 < b_goal.0 {
+        (a_goal, b_goal)
+      } else {
+        (b_goal, a_goal)
+      };
+      let time_traveled = shortest.0;
+      let new_t = t + time_traveled;
+      let new_pos_a = shortest.1.clone();
+      let new_pos_b = longest.1.clone();
+      let new_opening_a = None;
+      let new_opening_b = None;
+      let new_pressure = pressure + (pressure_release_rate * time_traveled);
+      let new_pressure_release_rate = pressure_release_rate + shortest.2;
+      let new_opened = {
+        let mut new_opened = opened.clone();
+        new_opened.push(shortest.1.clone());
+        new_opened
+      };
+      let child = create_elephant_tree(
+        valves,
+        tables,
+        new_t,
+        max_t,
+        new_pos_a.as_str(),
+        new_pos_b.as_str(),
+        new_opening_a,
+        new_opening_b,
+        new_opened,
+        new_pressure,
+        new_pressure_release_rate,
+      );
+      let eventual_pressure = child.get_eventual_best_pressure(max_t);
+      if best_child.is_none() || eventual_pressure > best_eventual_pressure {
+        best_child = Some(child);
+        best_eventual_pressure = eventual_pressure;
+      }
+    }
+  }
+  if a_goals.len() == 0 && b_goals.len() > 0 || a_goals.len() > 0 || b_goals.len() == 0 {
+    let (goals, pos, other_pos) = if a_goals.len() > 0 {
+      (a_goals, pos_a, pos_b)
+    } else {
+      (b_goals, pos_b, pos_a)
+    };
+    for goal in goals {
+      let time_traveled = goal.0;
+      let new_t = t + time_traveled;
+      let new_pos_a = goal.1.clone();
+      let new_pos_b = other_pos;
+      let new_opening_a = None;
+      let new_opening_b = None;
+      let new_pressure = pressure + (pressure_release_rate * time_traveled);
+      let new_pressure_release_rate = pressure_release_rate + goal.2;
+      let new_opened = {
+        let mut new_opened = opened.clone();
+        new_opened.push(goal.1.clone());
+        new_opened
+      };
+      let child = create_elephant_tree(
+        valves,
+        tables,
+        new_t,
+        max_t,
+        &new_pos_a,
+        new_pos_b,
+        new_opening_a,
+        new_opening_b,
+        new_opened,
+        new_pressure,
+        new_pressure_release_rate,
+      );
+      let eventual_pressure = child.get_eventual_best_pressure(max_t);
+      if best_child.is_none() || eventual_pressure > best_eventual_pressure {
+        best_child = Some(child);
+        best_eventual_pressure = eventual_pressure;
+      }
+    }
+  }
+
+  ElephantTree {
+    t,
+    pos_a: pos_a.to_owned(),
+    pos_b: pos_b.to_owned(),
+    pressure,
+    pressure_release_rate,
+    opened,
+    opening_a,
+    opening_b,
+    best_child: best_child.map(|v| Box::new(v)),
+  }
 }
