@@ -61,6 +61,12 @@ struct CacheObject {
 
 const CAVE_HEIGHT: usize = 1000;
 pub fn run(input: String) {
+  print!("Day 17: ");
+  solve(&input, 2022);
+  println!(" (takes ~10 hours)");
+  // solve(&input, 1000000000000);
+}
+pub fn solve(input: &String, blocks: usize) {
   // 2022 rocks, avg height of ~3
   // 7 units wide, 6066 tall
   /*
@@ -77,11 +83,11 @@ pub fn run(input: String) {
   let mut i = 0;
   // Time how long it takes
   let start = std::time::Instant::now();
-  let up_to = 100_000_000;
+  let up_to = blocks;
   for rock_i in 0..up_to {
     if rock_i % 10_000_000 == 0 && rock_i > 0 {
       println!(
-        "Rock {:?} {}",
+        "still calculating rocks... {:?} seconds, {}% done",
         start.elapsed(),
         ((rock_i as f64) / (up_to as f64)) * 100.0
       );
@@ -164,8 +170,9 @@ pub fn run(input: String) {
     }
   }
   let elapsed = start.elapsed();
-  println!("Time: {:?}", elapsed);
-  println!("Height: {}", lines_shifted + highest_local_rock);
+  // println!("Time: {:?}", elapsed);
+  // println!("Height: {}", lines_shifted + highest_local_rock);
+  print!("{}", lines_shifted + highest_local_rock);
 }
 
 fn display_cave(rock: &Rock, x: usize, y: usize, cave: &[u32; 6066]) {
