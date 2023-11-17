@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 #[derive(Debug, Clone, Copy)]
 struct Pos {
   x: i32,
@@ -17,6 +19,18 @@ struct Sensor {
   pos: Pos,
   beacon: Pos,
   range: i32,
+}
+impl Sensor {
+  pub fn get_edges(&self) -> HashSet<(i32, i32)> {
+    let mut edges = HashSet::new();
+    for x_disp in (-self.range - 1)..=self.range + 1 {
+      let y_disp_1 = (self.range + 2) - x_disp;
+      let y_disp_2 = -(self.range + 2) + x_disp;
+      edges.insert((self.pos.x + x_disp, self.pos.y + y_disp_1));
+      edges.insert((self.pos.x + x_disp, self.pos.y + y_disp_2));
+    }
+    edges
+  }
 }
 impl Sensor {
   pub fn new(pos: Pos, beacon: Pos) -> Sensor {
@@ -182,6 +196,56 @@ pub fn run(input: String) {
 
   // println!("{:?}", taken_spaces);
 
-  println!("Day 15: {} ???", tot_spaces);
+  print!("Day 15: {}", tot_spaces);
+  solve2(&sensors);
   // taken_spaces.sort_by(|(min_1, _), (min_2, _)| min_1.cmp(min_2));
+}
+
+pub fn get_row_ranges(row: i32, sensors: &Vec<Sensor>) -> Vec<(i32, i32)> {
+  let mut taken_spaces = sensors
+    .iter()
+    .map(|sensor| sensor.get_row_no_beacon_spots(row))
+    .filter(|x| x.is_some())
+    .map(|x| x.unwrap())
+    .collect::<Vec<_>>();
+
+  taken_spaces.sort_by(|(min_1, _), (min_2, _)| min_1.cmp(min_2));
+  // println!("{:?}", taken_spaces);
+
+  let mut to_delete = Vec::new();
+  let taken_spaces2 = taken_spaces.clone();
+  for i in 0..taken_spaces.len() {
+    let cur = taken_spaces[i];
+    let next = taken_spaces2.get(i + 1);
+    if let Some(next) = next {
+      if cur.1 >= next.0 {
+        to_delete.push(i);
+        taken_spaces[i + 1] = (cur.0, next.1.max(cur.1));
+      }
+    }
+  }
+  // println!("{:?}", to_delete);
+  let taken_spaces = taken_spaces
+    .into_iter()
+    .enumerate()
+    .filter(|(i, _)| !to_delete.contains(i))
+    .map(|(_, x)| x)
+    .collect::<Vec<_>>();
+  return taken_spaces;
+}
+// Withing 0 <= x <= 4_000_000 and 0 <= y <= 4_000_000
+// Get all spaces that are not taken
+
+// Does it make sense to rotate the board 45 degrees?
+fn solve2(sensors: &Vec<Sensor>) {
+  for row in 0..4_000_000 {
+    let ranges = get_row_ranges(row, sensors);
+    if ranges.len() > 1 {
+      let y = row as i64;
+      let x = ranges[0].1 as i64 + 1;
+      // println!("{} {:?}", row, ranges)
+      let tuning_freq = 4000000 as i64 * x + y;
+      print!(" {tuning_freq}");
+    }
+  }
 }
