@@ -16,9 +16,7 @@ macro_rules! run {
 //   day16, day17, day18, day20, day21, day22, day23, day24, day25
 // );
 // TODO:
-// run!(day19);
-// run!(day16);
-run!(day15);
+run!(day19);
 
 fn fetch_file(day: &str) -> String {
   // remove first 3 chars from day
