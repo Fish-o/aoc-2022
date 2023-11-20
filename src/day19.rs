@@ -128,8 +128,8 @@ fn simulate_blueprint(blueprint: &Blueprint, max_time: u16) -> OreAmount {
 
 pub fn run(input: String) {
   let blueprints = input.lines().map(parse_blueprint).collect::<Vec<_>>();
-  println!(
-    "{}",
+  print!(
+    "Day 19: {} ",
     blueprints
       .iter()
       .enumerate()
